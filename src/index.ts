@@ -6,7 +6,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 dotenv.config();
 
 const app = express();
-const port = 3077;
+const port = 3099;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
