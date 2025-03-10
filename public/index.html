@@ -42,63 +42,86 @@
 
     <script>
       function handleKeydown(event) {
+        // STEP 1: Setup our init vars.
         const guard = document.getElementById('guard1');
         const step = 10; // Number of pixels to move
         let top = parseInt(guard.style.top);
         let left = parseInt(guard.style.left);
 
-        console.log("\nDEBUG key = " + event.key + ", top = " + top + ", left = " + left);
+        // console.log("\nDEBUG key = " + event.key + ", top = " + top + ", left = " + left);
 
+        // STEP 2: Do key movement. Arrow keys.
+        let newTop = top;
+        let newLeft = left;
         switch (event.key) {
           case 'ArrowUp':
-            guard.style.top = (top - step) + 'px';
+            newTop = top - step;
             event.preventDefault();
             break;
           case 'ArrowDown':
-            guard.style.top = (top + step) + 'px';
+            newTop = top + step;
             event.preventDefault();
             break;
           case 'ArrowLeft':
-            guard.style.left = (left - step) + 'px';
+            newLeft = left - step;
             event.preventDefault();
             break;
           case 'ArrowRight':
-            guard.style.left = (left + step) + 'px';
+            newLeft = left + step;
             event.preventDefault();
             break;
         }
 
-        // Update z-index based on position, put person behind a house.
-        const guardBottom = parseInt(guard.style.top) + guard.offsetHeight;
-        console.log("DEBUG guardBottom = " + guardBottom);
-
+        // STEP 3: Loop over all objects and see if we hit them, stop move.
         // TODO: maybe dont do this EVERY time, only map load...
+        let canMove = true;
         const objects = document.querySelectorAll('.object-style'); // Define objects here
         objects.forEach(object => {
-          if (!isTouching(guard, object)) {
+          if (canMove && isTouching(newTop, newLeft, guard, object)) {
+            console.log("DEBUG touching object id = " + object.id);
+            canMove = false;
+
+            // break out of foreach.
+            // TODO
+          }
+        });
+        if (!canMove) {
+          console.log("DEBUG cannot move cuz hit something. ")
+          return;
+        }
+
+        // STEP 4: Perform actual move now if allowed.
+        guard.style.top = newTop + 'px';
+        guard.style.left = newLeft + 'px';
+        console.log("Moving to new location = " + newLeft + "," + newTop);
+
+        // STEP 5: Check move behind any object now.
+        const guardBottom = parseInt(guard.style.top) + guard.offsetHeight;
+        // console.log("DEBUG guardBottom = " + guardBottom);
+        objects.forEach(object => {
+          if (!isTouchingImage(guard, object)) {
             return;
           }
 
-          // TODO if touching only.
           const midline = parseInt(object.style.top) + parseInt(object.getAttribute('data-midline'));
-          console.log("DEBUG object id = " + object.id + ", midline = " + midline);
+          // console.log("DEBUG object id = " + object.id + ", midline = " + midline);
 
           if (guardBottom < midline) {
-            console.log("DEBUG pushing behind object")
-            // guard.style.zIndex = 5; // Behind the object
+            // console.log("DEBUG pushing behind object")
             const computedStyle = window.getComputedStyle(object);
             const objectZIndex = parseInt(computedStyle.zIndex);
             guard.style.zIndex = objectZIndex - 1; // Behind the object
-            console.log("DEBUG object.style.zIndex = " + objectZIndex);
-            console.log("DEBUG guard.style.zIndex = " + guard.style.zIndex);
+            // console.log("DEBUG object.style.zIndex = " + objectZIndex);
+            // console.log("DEBUG guard.style.zIndex = " + guard.style.zIndex);
           } else {
-            console.log("DEBUG pulling in front of object")
-            guard.style.zIndex = 10; // In front of the object
+            // console.log("DEBUG pulling in front of object")
+            guard.style.zIndex = 10; // In front of the object, default z index.
           }
         });
+
       }
 
-      function isTouching(guard, object) {
+      function isTouchingImage(guard, object) {
         const guardRect = guard.getBoundingClientRect();
         const objectRect = object.getBoundingClientRect();
 
@@ -108,6 +131,46 @@
           guardRect.left > objectRect.right ||
           guardRect.right < objectRect.left
         );
+      }
+
+      // Check polygon base of object.
+      function isTouching(newTop, newLeft, guard, object) {
+        const guardBottom = newTop + guard.offsetHeight;
+        const guardRight = newLeft + guard.offsetWidth;
+        const guardBottomLeft = { x: newLeft, y: guardBottom };
+        const guardBottomRight = { x: guardRight, y: guardBottom };
+        // console.log("DEBUG guardBottomLeft = " + JSON.stringify(guardBottomLeft));
+        // console.log("DEBUG guardBottomRight = " + JSON.stringify(guardBottomRight));
+
+        // Grab building polygon now.
+        const objectTop = parseInt(object.style.top);
+        const objectLeft = parseInt(object.style.left);
+        const polygon = object.getAttribute('data-polygon').split(' ').map(point => {
+          let [x, y] = point.split(',').map(Number);
+          x += objectLeft;
+          y += objectTop;
+          return { x, y };
+        });
+        // console.log("DEBUG polygon = " + JSON.stringify(polygon));
+
+        return isPointInPolygon(guardBottomLeft, polygon) || isPointInPolygon(guardBottomRight, polygon);
+      }
+
+      function isPointInPolygon(point, polygon) {
+        let isInside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+          const xi = polygon[i].x, yi = polygon[i].y;
+          const xj = polygon[j].x, yj = polygon[j].y;
+
+          const intersect = ((yi > point.y) !== (yj > point.y)) &&
+            (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+          if (intersect) isInside = !isInside;
+        }
+        return isInside;
+      }
+
+      function deepClone(obj) {
+        return JSON.parse(JSON.stringify(obj));
       }
 
       // Listeners.
@@ -122,8 +185,15 @@
 
 <!--test lets add in a couple houses-->
 <!-- todo need to shrink and remove extra spaces around houses. -->
-<div id="house2" class="object-style" style="top: 100px; left: 100px; width: 600px; height: 600px; background-image: url('images/house6.png');" data-midline="450"></div>
-<div id="house1" class="object-style" style="top: 100px; left: 800px; width: 600px; height: 600px; background-image: url('images/house5.png');" data-midline="450"></div>
+<div id="house2" class="object-style"
+     style="top: 100px; left: 100px; width: 600px; height: 600px; background-image: url('images/house6.png');"
+     data-midline="450"
+     data-polygon="85,470 315,615 565,470 295,350">
+</div>
+<div id="house1" class="object-style"
+     style="top: 100px; left: 800px; width: 600px; height: 600px; background-image: url('images/house5.png');"
+     data-midline="450"
+     data-polygon="35,450 350,640 550,520 285,300"></div>
 
 </body>
 </html>
