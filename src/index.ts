@@ -16,6 +16,9 @@ app.set('views', __dirname + '/views');
 app.listen(port, () => {
   console.log("Server started at http://localhost:" + port);
 });
+// app.listen(port, '0.0.0.0', () => {
+//   console.log(`Server is running on http://0.0.0.0:${port}`);
+// });
 
 // Home Route (Default / Main Page) - This is what you were asking for
 app.get('/', (req, res) => {
